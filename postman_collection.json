@@ -1,0 +1,270 @@
+{
+	"info": {
+		"_postman_id": "5d422f29-a504-4e63-9c08-dfe8dae7ece1",
+		"name": "Jogo Backend API",
+		"description": "API do backend do jogo com endpoints para gerenciamento de usuários, partidas e rankings.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Usuários",
+			"item": [
+				{
+					"name": "Criar Usuário",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.token).to.exist;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"João\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users"]
+						},
+						"description": "Cria um novo usuário ou retorna um usuário existente com o mesmo nome."
+					}
+				},
+				{
+					"name": "Obter Informações do Usuário",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", "me"]
+						},
+						"description": "Retorna as informações do usuário autenticado."
+					}
+				}
+			]
+		},
+		{
+			"name": "Partidas",
+			"item": [
+				{
+					"name": "Criar Nova Partida",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"score\": 1000\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/matches",
+							"host": ["{{base_url}}"],
+							"path": ["api", "matches"]
+						},
+						"description": "Cria uma nova partida para o usuário autenticado."
+					}
+				},
+				{
+					"name": "Ranking Diário",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/matches/ranking/daily?date=21/03/2024",
+							"host": ["{{base_url}}"],
+							"path": ["api", "matches", "ranking", "daily"],
+							"query": [
+								{
+									"key": "date",
+									"value": "21/03/2024",
+									"description": "Data opcional no formato DD/MM/YYYY"
+								}
+							]
+						},
+						"description": "Retorna o ranking de partidas de um dia específico. Exemplo de resposta:\n{\n  \"data\": \"21/03/2024\",\n  \"ranking\": [\n    {\n      \"posicao\": 1,\n      \"nomeJogador\": \"João\",\n      \"pontuacao\": 1000,\n      \"horario\": \"14:30:00\"\n    }\n  ]\n}"
+					}
+				},
+				{
+					"name": "Ranking Geral",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/matches/ranking/overall",
+							"host": ["{{base_url}}"],
+							"path": ["api", "matches", "ranking", "overall"]
+						},
+						"description": "Retorna o ranking geral com a melhor partida de cada jogador. Exemplo de resposta:\n[\n  {\n    \"posicao\": 1,\n    \"idJogador\": 1,\n    \"nome\": \"João\",\n    \"melhorPontuacao\": 1000,\n    \"dataPartida\": \"21/03/2024\"\n  }\n]"
+					}
+				},
+				{
+					"name": "Histórico de Partidas",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/matches/history/{{userId}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "matches", "history", "{{userId}}"]
+						},
+						"description": "Retorna o histórico completo de partidas de um jogador. Exemplo de resposta:\n[\n  {\n    \"id\": 1,\n    \"pontuacao\": 1000,\n    \"dataHora\": \"21/03/2024 14:30:00\",\n    \"idJogador\": 1\n  }\n]"
+					}
+				},
+				{
+					"name": "Top 10 Partidas",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/matches/top/{{userId}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "matches", "top", "{{userId}}"]
+						},
+						"description": "Retorna as 10 melhores partidas de um jogador. Exemplo de resposta:\n[\n  {\n    \"posicao\": 1,\n    \"id\": 1,\n    \"pontuacao\": 1000,\n    \"dataHora\": \"21/03/2024 14:30:00\",\n    \"idJogador\": 1\n  }\n]"
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "seu_token_jwt_aqui",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "1",
+			"type": "string"
+		}
+	]
+} 
