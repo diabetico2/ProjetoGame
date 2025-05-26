@@ -16,6 +16,139 @@ npm run dev
 
 O servidor iniciará na porta 3000.
 
+## Socket.IO - Eventos em Tempo Real
+
+O jogo utiliza Socket.IO para comunicação em tempo real entre o cliente e o servidor.
+
+### Eventos Disponíveis
+
+#### 1. Posição do Player
+- **Evento**: `player:position`
+- **Dados**:
+```typescript
+{
+  x: number,  // Posição X do player
+  y: number   // Posição Y do player
+}
+```
+- **Resposta** (broadcast): `player:position:update`
+```typescript
+{
+  id: string,        // ID do socket do player
+  position: {
+    x: number,
+    y: number
+  }
+}
+```
+
+#### 2. Posição do Inimigo
+- **Evento**: `enemy:position`
+- **Dados**:
+```typescript
+{
+  enemyId: string,   // ID do inimigo
+  position: {
+    x: number,
+    y: number
+  }
+}
+```
+- **Resposta** (broadcast): `enemy:position:update`
+```typescript
+{
+  id: string,        // ID do inimigo
+  position: {
+    x: number,
+    y: number
+  }
+}
+```
+
+#### 3. Detecção de Colisão
+- **Evento**: `collision:detect`
+- **Dados**:
+```typescript
+{
+  playerId: string,          // ID do socket do player
+  enemyId: string,           // ID do inimigo
+  playerPosition: {
+    x: number,
+    y: number
+  },
+  enemyPosition: {
+    x: number,
+    y: number
+  },
+  timestamp: number          // Timestamp da colisão
+}
+```
+- **Respostas**:
+  1. `collision:validate` (para o emissor)
+  ```typescript
+  {
+    collisionId: string,     // ID único da colisão
+    isValid: boolean        // true se a colisão for válida
+  }
+  ```
+  2. `collision:confirmed` (broadcast, apenas para colisões válidas)
+  ```typescript
+  {
+    // Dados completos da colisão
+  }
+  ```
+
+### Validação de Colisões
+
+O servidor valida as colisões considerando:
+- Distância entre os objetos (limite padrão: 50 pixels)
+- Tolerância de posição para latência (5 pixels)
+- Existência dos objetos no estado do jogo
+
+### Exemplo de Uso (Cliente)
+
+```javascript
+// Conectar ao servidor
+const socket = io('http://localhost:3000');
+
+// Enviar posição do player
+socket.emit('player:position', { x: 100, y: 200 });
+
+// Enviar posição do inimigo
+socket.emit('enemy:position', {
+  enemyId: 'enemy-1',
+  position: { x: 150, y: 250 }
+});
+
+// Reportar colisão
+socket.emit('collision:detect', {
+  playerId: socket.id,
+  enemyId: 'enemy-1',
+  playerPosition: { x: 100, y: 200 },
+  enemyPosition: { x: 150, y: 250 },
+  timestamp: Date.now()
+});
+
+// Receber atualizações
+socket.on('player:position:update', (data) => {
+  // Atualizar posição de outros players
+});
+
+socket.on('enemy:position:update', (data) => {
+  // Atualizar posição dos inimigos
+});
+
+socket.on('collision:validate', (result) => {
+  if (result.isValid) {
+    // Tratar colisão válida
+  }
+});
+
+socket.on('collision:confirmed', (collision) => {
+  // Tratar colisão confirmada
+});
+```
+
 ## Endpoints Disponíveis
 
 ### Usuários
