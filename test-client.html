@@ -129,7 +129,12 @@
     </div>
 
     <script>
-        const socket = io('http://localhost:3000');
+        const socket = io('http://localhost:3000', {
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            timeout: 10000
+        });
         const player = document.getElementById('player');
         const enemy = document.getElementById('enemy');
         let playerX = 50, playerY = 50;
@@ -291,6 +296,26 @@
 
         socket.on('collision:confirmed', (collision) => {
             logEvent('🎯 Colisão Confirmada pelo Servidor', collision);
+        });
+
+        socket.on('connect_error', (error) => {
+            document.getElementById('sessionId').textContent = 'Erro na conexão...';
+            logEvent('Erro de conexão', { error: error.message });
+        });
+
+        socket.on('reconnect_attempt', (attemptNumber) => {
+            document.getElementById('sessionId').textContent = `Tentando reconectar (${attemptNumber})...`;
+            logEvent('Tentativa de reconexão', { attempt: attemptNumber });
+        });
+
+        socket.on('reconnect_failed', () => {
+            document.getElementById('sessionId').textContent = 'Falha na reconexão';
+            logEvent('Falha na reconexão', { message: 'Número máximo de tentativas atingido' });
+        });
+
+        socket.on('disconnect', (reason) => {
+            document.getElementById('sessionId').textContent = 'Desconectado';
+            logEvent('Desconectado do servidor', { reason });
         });
     </script>
 </body>

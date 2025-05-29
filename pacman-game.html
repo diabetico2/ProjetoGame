@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pacman Multiplayer</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #gameContainer {
+            position: relative;
+            margin: 20px auto;
+            background: #000;
+            box-shadow: 0 0 15px rgba(0, 0, 255, 0.5);
+            overflow: hidden;
+        }
+
+        #playerInfo {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 12px;
+            margin: 8px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 16px;
+            box-shadow: 0 0 8px rgba(0, 0, 255, 0.3);
+        }
+
+        #waitingMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+            font-size: 18px;
+            box-shadow: 0 0 15px rgba(0, 0, 255, 0.3);
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+    <div id="playerInfo">
+        Você é: <span id="playerRole">Aguardando...</span>
+        <br>
+        ID da Sessão: <span id="sessionId">Conectando...</span>
+    </div>
+
+    <div id="gameContainer">
+        <div id="waitingMessage">Aguardando outro jogador...</div>
+    </div>
+
+    <script>
+        // Classe principal do jogo Pacman
+        class PacmanGame extends Phaser.Scene {
+            constructor() {
+                super({ key: 'PacmanGame' });
+                this.score = 0;
+                this.blockSize = 16;
+                this.speed = 170;
+                this.ghostSpeed = this.speed * 0.7;
+                this.playerRole = null;
+                this.socket = null;
+            }
+
+            init(data) {
+                this.socket = data.socket;
+                this.playerRole = data.playerRole;
+            }
+
+            preload() {
+                // Carrega o tilemap e tileset
+                this.load.image('pacman_tiles', 'sprite/pac man tiles/tileset.png');
+                this.load.tilemapTiledJSON('map', 'sprite/pacman-map.json');
+                
+                // Carrega sprites do Pacman
+                this.load.image('pacman0', 'sprite/pacman characters/pacman/pacman0.png');
+                this.load.image('pacman1', 'sprite/pacman characters/pacman/pacman1.png');
+                this.load.image('pacman2', 'sprite/pacman characters/pacman/pacman2.png');
+                this.load.image('pacman3', 'sprite/pacman characters/pacman/pacman3.png');
+                this.load.image('pacman4', 'sprite/pacman characters/pacman/pacman4.png');
+                
+                // Carrega sprites dos fantasmas
+                this.load.spritesheet('redGhost', 'sprite/ghost/red ghost/spr_ghost_red_0.png', {
+                    frameWidth: 32,
+                    frameHeight: 32
+                });
+                this.load.spritesheet('scaredGhost', 'sprite/ghost/ghost afraid/spr_afraid_0.png', {
+                    frameWidth: 32,
+                    frameHeight: 32
+                });
+                
+                // Carrega os pontos
+                this.load.image('dot', 'sprite/pacman Items/dot.png');
+                this.load.image('powerPill', 'sprite/pacman Items/spr_power_pill_0.png');
+
+                // Carrega sprites de morte do Pacman
+                this.load.spritesheet('pacmanDeath', 'sprite/pac man & life counter & death/pac man death/spr_pacdeath_0.png', {
+                    frameWidth: 32,
+                    frameHeight: 32
+                });
+            }
+
+            create() {
+                // Cria o mapa usando o tilemap
+                this.map = this.make.tilemap({ key: 'map' });
+                const tileset = this.map.addTilesetImage('pacman tileset', 'pacman_tiles');
+                this.layer = this.map.createLayer('Tile Layer 1', tileset);
+                this.layer.setCollisionByExclusion([-1]);
+
+                // Configura os limites do mundo do jogo
+                this.physics.world.bounds.width = this.map.widthInPixels;
+                this.physics.world.bounds.height = this.map.heightInPixels;
+
+                // Cria grupos para os pontos
+                this.dots = this.physics.add.group();
+                this.powerPills = this.physics.add.group();
+                this.createDots();
+
+                // Inicializa jogadores
+                this.initializePlayers();
+
+                // Configura controles JIKL
+                this.keys = this.input.keyboard.addKeys({
+                    up: Phaser.Input.Keyboard.KeyCodes.I,
+                    down: Phaser.Input.Keyboard.KeyCodes.K,
+                    left: Phaser.Input.Keyboard.KeyCodes.J,
+                    right: Phaser.Input.Keyboard.KeyCodes.L
+                });
+
+                // Adiciona texto de pontuação
+                this.scoreText = this.add.text(16, 16, 'Score: 0', {
+                    fontSize: '32px',
+                    fill: '#fff'
+                });
+
+                // Animação do Pacman
+                this.anims.create({
+                    key: 'pacman_move',
+                    frames: [
+                        { key: 'pacman0' },
+                        { key: 'pacman1' },
+                        { key: 'pacman2' },
+                        { key: 'pacman3' },
+                        { key: 'pacman4' }
+                    ],
+                    frameRate: 10,
+                    repeat: -1
+                });
+
+                // Animação de morte do Pacman
+                this.anims.create({
+                    key: 'pacman_death',
+                    frames: this.anims.generateFrameNumbers('pacmanDeath', { start: 0, end: 7 }),
+                    frameRate: 8,
+                    repeat: 0
+                });
+            }
+
+            createDots() {
+                const tileWidth = this.map.tileWidth;
+                const tileHeight = this.map.tileHeight;
+
+                for (let y = 0; y < this.map.height; y++) {
+                    for (let x = 0; x < this.map.width; x++) {
+                        const tile = this.map.getTileAt(x, y);
+                        if (!tile) {
+                            // Adiciona ponto em espaços vazios
+                            const dot = this.dots.create(
+                                x * tileWidth + tileWidth / 2,
+                                y * tileHeight + tileHeight / 2,
+                                'dot'
+                            );
+                            dot.setScale(0.5);
+                        }
+                    }
+                }
+
+                // Adiciona power pills nos cantos
+                const powerPillPositions = [
+                    {x: 1, y: 1},
+                    {x: this.map.width - 2, y: 1},
+                    {x: 1, y: this.map.height - 2},
+                    {x: this.map.width - 2, y: this.map.height - 2}
+                ];
+
+                powerPillPositions.forEach(pos => {
+                    const pill = this.powerPills.create(
+                        pos.x * tileWidth + tileWidth / 2,
+                        pos.y * tileHeight + tileHeight / 2,
+                        'powerPill'
+                    );
+                    pill.setScale(0.8);
+                });
+            }
+
+            initializePlayers() {
+                if (this.playerRole === 'pacman') {
+                    this.pacman = this.physics.add.sprite(14 * this.blockSize, 23 * this.blockSize, 'pacman0');
+                    this.physics.add.collider(this.pacman, this.layer);
+                    this.physics.add.overlap(this.pacman, this.dots, this.collectDot, null, this);
+                    this.physics.add.overlap(this.pacman, this.powerPills, this.collectPowerPill, null, this);
+                    this.pacman.play('pacman_move');
+                }
+
+                if (this.playerRole === 'ghost') {
+                    this.ghost = this.physics.add.sprite(14 * this.blockSize, 11 * this.blockSize, 'redGhost');
+                    this.physics.add.collider(this.ghost, this.layer);
+                    
+                    // Animação do Fantasma
+                    this.anims.create({
+                        key: 'ghost_move',
+                        frames: this.anims.generateFrameNumbers('redGhost', { start: 0, end: 1 }),
+                        frameRate: 5,
+                        repeat: -1
+                    });
+
+                    // Animação do Fantasma assustado
+                    this.anims.create({
+                        key: 'ghost_scared',
+                        frames: this.anims.generateFrameNumbers('scaredGhost', { start: 0, end: 1 }),
+                        frameRate: 5,
+                        repeat: -1
+                    });
+
+                    this.ghost.play('ghost_move');
+                }
+
+                // Adiciona colisão entre Pacman e Fantasma
+                if (this.pacman && this.ghost) {
+                    this.physics.add.overlap(this.pacman, this.ghost, this.handleCollision, null, this);
+                }
+            }
+
+            handleCollision(pacman, ghost) {
+                if (this.powerMode) {
+                    // Se o Pacman está com power pill, o fantasma morre
+                    ghost.setTexture('scaredGhost');
+                    ghost.play('ghost_scared');
+                    this.score += 200;
+                    this.scoreText.setText('Score: ' + this.score);
+                } else {
+                    // Se não, o Pacman morre
+                    this.pacmanDies();
+                }
+            }
+
+            pacmanDies() {
+                this.pacman.play('pacman_death');
+                this.pacman.once('animationcomplete', () => {
+                    this.scene.restart();
+                });
+            }
+
+            collectDot(pacman, dot) {
+                dot.destroy();
+                this.score += 10;
+                this.scoreText.setText('Score: ' + this.score);
+                this.socket.emit('dot:collected', { x: dot.x, y: dot.y });
+            }
+
+            collectPowerPill(pacman, powerPill) {
+                powerPill.destroy();
+                this.score += 50;
+                this.scoreText.setText('Score: ' + this.score);
+                
+                // Ativa o modo power
+                this.powerMode = true;
+                this.time.delayedCall(10000, () => {
+                    this.powerMode = false;
+                }, [], this);
+
+                this.socket.emit('powerPill:collected', { x: powerPill.x, y: powerPill.y });
+            }
+
+            update() {
+                if (!this.playerRole) return;
+
+                if (this.playerRole === 'pacman' && this.pacman) {
+                    this.handlePacmanMovement();
+                } else if (this.playerRole === 'ghost' && this.ghost) {
+                    this.handleGhostMovement();
+                }
+            }
+
+            handlePacmanMovement() {
+                let velocity = { x: 0, y: 0 };
+
+                if (this.keys.left.isDown) {
+                    velocity.x = -this.speed;
+                    this.pacman.setAngle(180);
+                } else if (this.keys.right.isDown) {
+                    velocity.x = this.speed;
+                    this.pacman.setAngle(0);
+                } else if (this.keys.up.isDown) {
+                    velocity.y = -this.speed;
+                    this.pacman.setAngle(-90);
+                } else if (this.keys.down.isDown) {
+                    velocity.y = this.speed;
+                    this.pacman.setAngle(90);
+                }
+
+                this.pacman.setVelocity(velocity.x, velocity.y);
+                
+                if (velocity.x !== 0 || velocity.y !== 0) {
+                    this.pacman.play('pacman_move', true);
+                } else {
+                    this.pacman.stop();
+                }
+
+                this.socket.emit('pacman:move', {
+                    x: this.pacman.x,
+                    y: this.pacman.y,
+                    velocity: velocity,
+                    angle: this.pacman.angle
+                });
+            }
+
+            handleGhostMovement() {
+                let velocity = { x: 0, y: 0 };
+
+                if (this.keys.left.isDown) {
+                    velocity.x = -this.ghostSpeed;
+                } else if (this.keys.right.isDown) {
+                    velocity.x = this.ghostSpeed;
+                } else if (this.keys.up.isDown) {
+                    velocity.y = -this.ghostSpeed;
+                } else if (this.keys.down.isDown) {
+                    velocity.y = this.ghostSpeed;
+                }
+
+                this.ghost.setVelocity(velocity.x, velocity.y);
+
+                if (velocity.x !== 0 || velocity.y !== 0) {
+                    this.ghost.play('ghost_move', true);
+                } else {
+                    this.ghost.stop();
+                }
+
+                this.socket.emit('ghost:move', {
+                    x: this.ghost.x,
+                    y: this.ghost.y,
+                    velocity: velocity
+                });
+            }
+        }
+
+        // Configuração do jogo
+        const config = {
+            type: Phaser.AUTO,
+            parent: 'gameContainer',
+            width: 464,
+            height: 560,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 0 },
+                    debug: false
+                }
+            },
+            scene: PacmanGame
+        };
+
+        // Socket.IO setup
+        const socket = io('http://localhost:3000', {
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            timeout: 10000
+        });
+
+        let game = null;
+
+        socket.on('connect', () => {
+            document.getElementById('sessionId').textContent = socket.id;
+            document.getElementById('waitingMessage').style.display = 'block';
+        });
+
+        socket.on('game:role', (role) => {
+            document.getElementById('playerRole').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+            document.getElementById('waitingMessage').style.display = 'none';
+            
+            // Inicia o jogo com o papel designado
+            if (!game) {
+                game = new Phaser.Game(config);
+                game.scene.start('PacmanGame', { socket: socket, playerRole: role });
+            }
+        });
+
+        socket.on('pacman:update', (data) => {
+            const scene = game.scene.getScene('PacmanGame');
+            if (scene && scene.playerRole === 'ghost' && scene.pacman) {
+                scene.pacman.setPosition(data.x, data.y);
+                scene.pacman.setVelocity(data.velocity.x, data.velocity.y);
+            }
+        });
+
+        socket.on('ghost:update', (data) => {
+            const scene = game.scene.getScene('PacmanGame');
+            if (scene && scene.playerRole === 'pacman' && scene.ghost) {
+                scene.ghost.setPosition(data.x, data.y);
+                scene.ghost.setVelocity(data.velocity.x, data.velocity.y);
+            }
+        });
+
+        socket.on('game:over', (winner) => {
+            alert(`Jogo terminado! ${winner} venceu!`);
+            location.reload();
+        });
+    </script>
+</body>
+</html>

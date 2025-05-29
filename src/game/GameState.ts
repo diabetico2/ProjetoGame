@@ -72,4 +72,12 @@ export class GameStateManager {
   getGameState(): GameState {
     return this.gameState;
   }
+
+  getState(): GameState {
+    return this.gameState;
+  }
+
+  removePlayer(playerId: string) {
+    this.gameState.players.delete(playerId);
+  }
 } 
